@@ -1,0 +1,11 @@
+# Ignore .NET compiled files
+bin/
+obj/
+
+# Ignore Angular dependencies
+node_modules/
+.angular/
+
+# Ignore local IDE settings
+.vs/
+.vscode/
