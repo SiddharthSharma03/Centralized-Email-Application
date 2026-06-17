@@ -11,6 +11,7 @@ namespace CentralizedEmailApp.API.Data
 
         public DbSet<EmailLog> EmailLogs { get; set; }
         public DbSet<Application> Applications { get; set; }
+        public DbSet<User> Users { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -21,6 +22,10 @@ namespace CentralizedEmailApp.API.Data
                 .WithMany(a => a.EmailLogs)
                 .HasForeignKey(e => e.AppId)
                 .HasPrincipalKey(a => a.Name);
+
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.Email)
+                .IsUnique();
         }
     }
 }

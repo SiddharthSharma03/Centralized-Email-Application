@@ -2,6 +2,7 @@
 using CentralizedEmailApp.API.DTOs;
 using CentralizedEmailApp.API.Models;
 using CentralizedEmailApp.API.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -11,6 +12,8 @@ using System.Threading.Tasks;
 
 namespace CentralizedEmailApp.API.Controllers
 {
+
+    [Authorize(Roles = "Admin,Employee")]
     [Route("api/[controller]")]
     [ApiController]
     public class EmailController : ControllerBase

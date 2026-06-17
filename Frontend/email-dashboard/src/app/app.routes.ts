@@ -4,6 +4,8 @@ import { Routes } from '@angular/router';
 import { EmailDispatcher } from './pages/email-dispatcher/email-dispatcher';
 import { AppRegistry } from './pages/app-registry/app-registry';
 import { ConsumptionReport} from './pages/consumption-report/consumption-report';
+import { AppRegister } from './pages/app-register/app-register';
+import { AppLogin } from './pages/app-login/app-login';
  
 export const routes: Routes = [
   // 1. The default route now instantly redirects to the Reports Dashboard
@@ -11,6 +13,14 @@ export const routes: Routes = [
     path: '', 
     redirectTo: 'reports',
     pathMatch: 'full'
+  },
+  {
+    path: 'registerUser',
+    component : AppRegister
+  },
+  {
+    path: 'login',
+    component: AppLogin
   },
   { 
     path: 'dispatch', 

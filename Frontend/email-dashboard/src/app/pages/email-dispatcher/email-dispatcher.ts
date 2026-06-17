@@ -37,8 +37,7 @@ export class EmailDispatcher {
         '',
         [
           Validators.required,
-          Validators.pattern('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}$'),
-        ],
+          Validators.pattern('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}$'),],
       ],
       subject: ['', Validators.required],
       body: ['', Validators.required],

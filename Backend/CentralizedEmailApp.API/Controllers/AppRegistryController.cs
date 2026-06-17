@@ -1,11 +1,13 @@
 ﻿using CentralizedEmailApp.API.Data;
 using CentralizedEmailApp.API.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.Tasks;
 
 namespace CentralizedEmailApp.API.Controllers
 {
+    [Authorize(Roles = "Admin")]
     [Route("api/[controller]")]
     [ApiController]
     public class AppRegistryController : ControllerBase

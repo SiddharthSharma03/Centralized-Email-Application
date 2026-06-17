@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -13,9 +13,18 @@ import { Application } from '../../models/email.model';
   styleUrl: './app-registry.css'
 })
 export class AppRegistry implements OnInit {
-  registryForm: FormGroup;
+  // Modern Angular 18 Property Injections
+  private fb = inject(FormBuilder);
+  private apiService = inject(ApiService);
+  private cdr = inject(ChangeDetectorRef);
+
+  registryForm!: FormGroup; // Marked as definitely initialized below
   registeredApps: Application[] = [];
   formSubmitted = false;
+  isLoading: boolean = true;
+
+  // --- ROLE SECURITY STATE ---
+  isAdmin = false;
 
   // --- REGISTRATION MODAL STATE ---
   isModalOpen = false;
@@ -25,15 +34,29 @@ export class AppRegistry implements OnInit {
   isStatusModalOpen = false;
   appToChange: any = null;
   newPendingStatus = '';
-  isLoading: boolean = true;
 
-  constructor(private fb: FormBuilder, private apiService: ApiService, private cdr: ChangeDetectorRef) {
+  ngOnInit() {
+    // 1. Evaluate user role authority right at startup
+    const role = this.apiService.getUserRole();
+    this.isAdmin = (role === 'Admin');
+
+    // 2. Build the structural validation form group shell
+    this.initForm();
+
+    // 3. Defensive Gate: Execute data engine download pipelines ONLY if user is Admin
+    if (this.isAdmin) {
+      this.loadApps();
+    } else {
+      this.isLoading = false; // Turn off initial skeleton/spinners for employees immediately
+    }
+  }
+
+  private initForm() {
     this.registryForm = this.fb.group({
       name: ['', [
         Validators.required,
         Validators.minLength(3),
         Validators.maxLength(40),
-
         (control: any) => {
           const exists = this.registeredApps.some(
             app => app.name.toLowerCase() === control.value?.toLowerCase()
@@ -44,10 +67,6 @@ export class AppRegistry implements OnInit {
       contactEmail: ['', Validators.email],
       status: ['Testing', Validators.required] 
     });
-  }
-
-  ngOnInit() {
-    this.loadApps();
   }
 
   loadApps() {
@@ -66,7 +85,6 @@ export class AppRegistry implements OnInit {
 
   // --- REGISTRATION LOGIC ---
   initiateRegistration() {
-
     this.formSubmitted = true;
 
     if (this.registryForm.invalid) {
@@ -74,7 +92,6 @@ export class AppRegistry implements OnInit {
       return;
     }
 
-    // If valid, proceed to modal
     this.pendingApp = this.registryForm.value;
     this.isModalOpen = true;
   }
@@ -85,7 +102,6 @@ export class AppRegistry implements OnInit {
         this.loadApps(); 
         this.closeModal();
         this.registryForm.reset({ status: 'Testing' });
-        
         this.formSubmitted = false; 
         this.cdr.detectChanges();
       },

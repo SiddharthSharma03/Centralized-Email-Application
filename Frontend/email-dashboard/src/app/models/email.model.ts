@@ -1,3 +1,17 @@
+export interface UserRegister{
+  email : string;
+  password : string;
+}
+
+export interface UserLogin{
+  email : string;
+  password : string;
+}
+
+export interface AuthResponse{
+  token : string;
+}
+
 export interface Application {
   id?: number;
   name: string;
