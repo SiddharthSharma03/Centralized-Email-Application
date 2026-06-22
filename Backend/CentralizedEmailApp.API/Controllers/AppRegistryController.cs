@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 
 namespace CentralizedEmailApp.API.Controllers
 {
-    [Authorize(Roles = "Admin")]
     [Route("api/[controller]")]
     [ApiController]
     public class AppRegistryController : ControllerBase
@@ -20,6 +19,7 @@ namespace CentralizedEmailApp.API.Controllers
         }
 
         // 1. GET: Downloads the list of apps to your Angular frontend
+        [Authorize(Roles = "Admin,Employee")]
         [HttpGet]
         public async Task<IActionResult> GetApps()
         {
@@ -28,6 +28,7 @@ namespace CentralizedEmailApp.API.Controllers
         }
 
         // 2. POST: Registers a new application
+        [Authorize(Roles = "Admin")]
         [HttpPost]
         public async Task<IActionResult> RegisterApp([FromBody] Application newApp)
         {
@@ -37,6 +38,7 @@ namespace CentralizedEmailApp.API.Controllers
         }
 
         // 3. PUT: Updates the Status (Active/Testing/Disabled)
+        [Authorize(Roles = "Admin")]
         [HttpPut("{id}/status")]
         public async Task<IActionResult> UpdateStatus(int id, [FromBody] string newStatus)
         {

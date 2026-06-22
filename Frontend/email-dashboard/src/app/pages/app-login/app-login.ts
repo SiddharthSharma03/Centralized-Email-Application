@@ -51,7 +51,6 @@ export class AppLogin {
         this.loginForm.enable();
         this.loginForm.reset();
         
-        // Immediate redirection right to your dashboard grid
         setTimeout(() => {
           this.router.navigate(['/reports']);
         }, 2000);
@@ -60,15 +59,12 @@ export class AppLogin {
       },
       error: (error) => {
         console.error('Login failed:', error);
-        // Display clear message if backend sends back a specific 401 error string
         this.isSending = false;
         this.loginForm.enable();
 
          if (error.status === 0 || (error.error instanceof ProgressEvent)) {
-          // Status 0 means the browser couldn't even connect to the backend server gateway
           this.statusMessage = '❌ Unable to establish connection to the secure gateway.';
         } else {
-          // Fallback to backend JSON error string if it exists
           this.statusMessage = `❌ ${error.error || 'Invalid corporate email or access password.'}`;
         }
       }

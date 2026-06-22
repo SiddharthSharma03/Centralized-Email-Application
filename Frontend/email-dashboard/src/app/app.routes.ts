@@ -1,14 +1,12 @@
 import { Routes } from '@angular/router';
-
-// We can remove the AdminHub import completely since we killed the Hub!
 import { EmailDispatcher } from './pages/email-dispatcher/email-dispatcher';
 import { AppRegistry } from './pages/app-registry/app-registry';
-import { ConsumptionReport} from './pages/consumption-report/consumption-report';
+import { ConsumptionReport } from './pages/consumption-report/consumption-report';
 import { AppRegister } from './pages/app-register/app-register';
 import { AppLogin } from './pages/app-login/app-login';
- 
+import { authGuard, publicGuard } from '../Guards/auth.guard'; // Import your guards 
+
 export const routes: Routes = [
-  // 1. The default route now instantly redirects to the Reports Dashboard
   { 
     path: '', 
     redirectTo: 'reports',
@@ -16,25 +14,29 @@ export const routes: Routes = [
   },
   {
     path: 'registerUser',
-    component : AppRegister
+    component: AppRegister,
+    canActivate: [publicGuard] // 🔒 Block if already logged in
   },
   {
     path: 'login',
-    component: AppLogin
+    component: AppLogin,
+    canActivate: [publicGuard] // 🔒 Block if already logged in
   },
   { 
     path: 'dispatch', 
-    component: EmailDispatcher
+    component: EmailDispatcher,
+    canActivate: [authGuard] // 🔒 Lock down to verified sessions
   },
   { 
     path: 'register', 
-    component: AppRegistry
+    component: AppRegistry,
+    canActivate: [authGuard] // 🔒 Lock down to verified sessions
   },
   { 
     path: 'reports', 
-    component: ConsumptionReport
+    component: ConsumptionReport,
+    canActivate: [authGuard] // 🔒 Lock down to verified sessions
   },
-  // 2. The catch-all (if a user types a random URL) also redirects to the Dashboard
   { 
     path: '**', 
     redirectTo: 'reports' 
