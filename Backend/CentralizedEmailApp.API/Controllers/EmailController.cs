@@ -2,6 +2,7 @@
 using CentralizedEmailApp.API.DTOs;
 using CentralizedEmailApp.API.Models;
 using CentralizedEmailApp.API.Services;
+using Hangfire; // 🟢 Added for background queuing
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,6 @@ using System.Threading.Tasks;
 
 namespace CentralizedEmailApp.API.Controllers
 {
-
     [Authorize(Roles = "Admin,Employee")]
     [Route("api/[controller]")]
     [ApiController]
@@ -20,16 +20,18 @@ namespace CentralizedEmailApp.API.Controllers
     {
         private readonly IEmailService _emailService;
         private readonly AppDbContext _context;
+        private readonly IBackgroundJobClient _backgroundJobClient; // 🟢 Injected Hangfire Manager
 
-        public EmailController(IEmailService emailService, AppDbContext context)
+        public EmailController(IEmailService emailService, AppDbContext context, IBackgroundJobClient backgroundJobClient)
         {
             _emailService = emailService;
             _context = context;
+            _backgroundJobClient = backgroundJobClient;
         }
 
-
-        // 1. SINGLE EMAIL DISPATCH
-        
+        // =========================================================================
+        // 1. SINGLE EMAIL DISPATCH (Now Asynchronous)
+        // =========================================================================
         [HttpPost("send")]
         public async Task<IActionResult> SendEmail([FromBody] SendEmailRequestDto request)
         {
@@ -41,50 +43,16 @@ namespace CentralizedEmailApp.API.Controllers
                 return BadRequest(new { message = "Access Denied: Application is unregistered or disabled." });
             }
 
-            bool isSuccess = true;
-            string? errorReason = null;
+            // 🚀 Offload email transmission AND db logging to a background thread
+            _backgroundJobClient.Enqueue(() => ProcessAndLogEmailAsync(request, null));
 
-
-            try
-            {
-                // Uncomment this when a real SMTP server is configured
-                //await _emailService.SendEmailAsync(request.Recipient, request.Subject, request.Body);
-
-                // To forcefully test the error box feature, uncomment this line:
-                //throw new Exception("CRITICAL: Single Email SMTP connection refused on port 587.");
-
-                isSuccess = true;
-            }
-            catch (Exception ex)
-            {
-                isSuccess = false;
-                errorReason = ex.Message;
-            }
-
-            // 3. DATABASE LOGGING
-            _context.EmailLogs.Add(new EmailLog
-            {
-                AppId = request.AppName,
-                Recipient = request.Recipient,
-                Subject = request.Subject,
-                Body = request.Body,
-                Status = isSuccess ? "Success" : "Failed",
-                ErrorMessage = errorReason,
-                SentAt = DateTime.Now,
-                CampaignId = null
-            });
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                success = isSuccess,
-                message = isSuccess ? "Email dispatched." : "Email failed.",
-                error = errorReason
-            });
+            // Instant response! Frontend spinner stops spinning immediately.
+            return Ok(new { success = true, message = "Email request accepted and queued for background delivery." });
         }
 
-        // 2. BULK CSV DISPATCH
-
+        // =========================================================================
+        // 2. BULK CSV DISPATCH (Industry Standard Granular Multi-Job Queue)
+        // =========================================================================
         [HttpPost("bulk")]
         public async Task<IActionResult> SendBulkEmails([FromQuery] int? campaignId, [FromBody] List<BulkEmailRequestDto> emailRequests)
         {
@@ -96,48 +64,68 @@ namespace CentralizedEmailApp.API.Controllers
                 .ToListAsync();
 
             var validAppNames = new HashSet<string>(activeApps);
+            int queuedCount = 0;
+            int rejectedCount = 0;
 
-            var logsToSave = new List<EmailLog>();
-            int successCount = 0;
-            int failedCount = 0;
-
-            // 2. PROCESS ENTIRE BATCH
             foreach (var request in emailRequests)
             {
-
                 if (!validAppNames.Contains(request.AppId))
                 {
-                    failedCount++;
-
-                    continue;
+                    rejectedCount++;
+                    continue; // Skip invalid application payloads safely
                 }
 
-                bool isSuccess = false;
-                string? errorReason = null;
-
-                try
+                // Transform Bulk DTO to standard Send format for the worker method
+                var singleRequest = new SendEmailRequestDto
                 {
-                    // await _emailService.SendEmailAsync(...)
+                    AppName = request.AppId,
+                    Recipient = request.Recipient,
+                    Subject = request.Subject,
+                    Body = request.Body
+                };
 
+                // 🚀 Enqueue each individual email as its own separate background task
+                _backgroundJobClient.Enqueue(() => ProcessAndLogEmailAsync(singleRequest, campaignId));
+                queuedCount++;
+            }
 
-                    // To test the error box, uncomment this line for the specifically bulk:
-                    //throw new Exception("CRITICAL TIMEOUT: SMTP gateway at mail.collabera.com refused the connection.");
+            return Ok(new
+            {
+                Message = "Bulk dispatch ingestion complete. Tasks offloaded to background engine.",
+                TotalAttempted = emailRequests.Count,
+                QueuedSuccessfully = queuedCount,
+                RejectedInvalidApp = rejectedCount
+            });
+        }
 
+        // =========================================================================
+        // 3. BACKGROUND WORKER EXECUTION METHOD (Invoked asynchronously by Hangfire)
+        // =========================================================================
+        [NonAction] // Tells ASP.NET Core this is a background worker method, not an API route
+        public async Task ProcessAndLogEmailAsync(SendEmailRequestDto request, int? campaignId)
+        {
+            bool isSuccess = true;
+            string? errorReason = null;
 
-                    isSuccess = true;
-                    successCount++;
-                }
-                catch (Exception ex)
+            try
+            {
+                // Execute real SMTP network handshake completely off the web thread pool
+                // await _emailService.SendEmailAsync(request.Recipient, request.Subject, request.Body);
+
+                isSuccess = true;
+            }
+            catch (Exception ex)
+            {
+                isSuccess = false;
+                errorReason = ex.Message;
+                throw; // Re-throw the exception so Hangfire dashboard visualizes the failure and schedules retries!
+            }
+            finally
+            {
+                // Separate scoped processing context context injection for logging safely
+                _context.EmailLogs.Add(new EmailLog
                 {
-                    isSuccess = false;
-                    failedCount++;
-                    errorReason = ex.Message;
-                }
-
-
-                logsToSave.Add(new EmailLog
-                {
-                    AppId = request.AppId,
+                    AppId = request.AppName,
                     Recipient = request.Recipient,
                     Subject = request.Subject,
                     Body = request.Body,
@@ -146,20 +134,9 @@ namespace CentralizedEmailApp.API.Controllers
                     SentAt = DateTime.Now,
                     CampaignId = campaignId
                 });
+
+                await _context.SaveChangesAsync();
             }
-
-            // 3. DATABASE LOGGING (Batch Insert)
-            await _context.EmailLogs.AddRangeAsync(logsToSave);
-            await _context.SaveChangesAsync();
-
- 
-            return Ok(new
-            {
-                Message = "Bulk dispatch complete.",
-                TotalAttempted = emailRequests.Count,
-                Successful = successCount,
-                Failed = failedCount
-            });
         }
     }
 }
